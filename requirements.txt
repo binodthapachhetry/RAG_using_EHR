@@ -1,0 +1,11 @@
+fastapi                                                                        
+uvicorn[standard]                                                              
+pydantic                                                                       
+                                                                              
+# GCP Libraries                                                                
+google-cloud-bigquery                                                          
+                                                                              
+# LLM/RAG Libraries (examples, choose specific ones later)                     
+# langchain                                                                    
+# openai                                                                       
+# google-cloud-aiplatform 
