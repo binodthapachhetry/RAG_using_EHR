@@ -2,20 +2,23 @@ from google.cloud import bigquery
 from ..config import settings                                                  
 import asyncio # For running synchronous client calls in a thread
                                                                                
-class BigQueryHandler:                                                         
-    def __init__(self, project_id: str, dataset_id: str):                      
-        self.client = bigquery.Client(project=project_id)                      
-        self.project_id = project_id                                           
-        self.dataset_id = dataset_id                                           
-        self.fhir_base_tables = {                                              
-            "patient": f"{project_id}.{dataset_id}.patient",                   
-            "medicationrequest": f"{project_id}.{dataset_id}.medication_request",                                 
-            "condition": f"{project_id}.{dataset_id}.condition",               
-            "observation": f"{project_id}.{dataset_id}.observation", # For lab results, vitals                                                                 
-            "allergyintolerance": f"{project_id}.{dataset_id}.allergy_intolerance",                                
+class BigQueryHandler:
+    def __init__(self, job_exec_project_id: str, data_source_project_id: str, dataset_id: str):
+        # Client configured to run/bill jobs in the user's project
+        self.client = bigquery.Client(project=job_exec_project_id)
+        # Storing data source project and dataset for constructing table paths
+        self.data_source_project_id = data_source_project_id
+        self.dataset_id = dataset_id
+        # Table names are PascalCase in FHIR BigQuery datasets
+        self.fhir_base_tables = {
+            "patient": f"{data_source_project_id}.{dataset_id}.Patient",
+            "medicationrequest": f"{data_source_project_id}.{dataset_id}.MedicationRequest",
+            "condition": f"{data_source_project_id}.{dataset_id}.Condition",
+            "observation": f"{data_source_project_id}.{dataset_id}.Observation", # For lab results, vitals
+            "allergyintolerance": f"{data_source_project_id}.{dataset_id}.AllergyIntolerance",
         }                                                                      
                                                                                
-    async def handle_simple_query(self, patient_id: str, query_text: str) ->   list[dict]:                                                                     
+    async def handle_simple_query(self, patient_id: str, query_text: str) -> list[dict]:                                                                     
         """                                                                    
         Handles simple, direct queries to BigQuery based on parsed intent from query_text.                                                                     
         This is a placeholder for specific query construction logic.           
