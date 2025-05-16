@@ -28,5 +28,5 @@ async def handle_chat_request(
     else:                                                                      
         raise HTTPException(status_code=400, detail="Could not determine query type.")                                                                         
                                                                                
-    return ChatResponse(answer=str(result), patient_id=request.patient_id,     
+    return ChatResponse(answer=str(result), patient_id=request.patient_id, session_id=request.session_id,
 query_type=query_type) 
