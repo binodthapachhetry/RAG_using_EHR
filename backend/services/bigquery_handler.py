@@ -57,7 +57,11 @@ class BigQueryHandler:
         """
         Helper to run a BigQuery query asynchronously using asyncio.to_thread.
         """
-        job_config = bigquery.QueryJobConfig(query_parameters=query_params) if query_params else None
+        job_config = bigquery.QueryJobConfig(query_parameters=query_params) if query_params else bigquery.QueryJobConfig()
+        
+        # Explicitly set the location for the query job to US, as public data is there.
+        # This helps ensure the job runs in the same general location as the data.
+        job_config.location = "US"
         
         # This is the synchronous part that will be run in a separate thread
         def sync_bq_call():
