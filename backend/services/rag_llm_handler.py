@@ -12,7 +12,7 @@ class RagLlmHandler:
         # Initialize Vertex AI. The project and location are often picked up from the environment
         # if gcloud is configured, but explicit initialization is safer.
         # GCP_REGION will be available in settings after the config.py update
-        vertexai.init(project=settings.GCP_PROJECT_ID, location=settings.GCP_REGION)
+        vertexai.init(project=settings.VERTEX_AI_PROJECT_ID, location=settings.GCP_REGION)
         
         # Load the Gemini model
         # Ensure LLM_MODEL_NAME in config.py is set to a valid Gemini model name,
