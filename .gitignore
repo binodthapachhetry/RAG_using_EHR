@@ -1,1 +1,3 @@
 .aider*
+.env
+gcp_setup/*

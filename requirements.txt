@@ -6,6 +6,6 @@ pydantic
 google-cloud-bigquery                                                          
                                                                               
 # LLM/RAG Libraries (examples, choose specific ones later)                     
-# langchain                                                                    
-# openai                                                                       
-# google-cloud-aiplatform 
+langchain                                                                    
+vertexai                                                                       
+google-cloud-aiplatform 
