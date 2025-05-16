@@ -11,11 +11,11 @@ class BigQueryHandler:
         self.dataset_id = dataset_id
         # Table names are PascalCase in FHIR BigQuery datasets
         self.fhir_base_tables = {
-            "patient": f"{data_source_project_id}.{dataset_id}.Patient",
-            "medicationrequest": f"{data_source_project_id}.{dataset_id}.MedicationRequest",
-            "condition": f"{data_source_project_id}.{dataset_id}.Condition",
-            "observation": f"{data_source_project_id}.{dataset_id}.Observation", # For lab results, vitals
-            "allergyintolerance": f"{data_source_project_id}.{dataset_id}.AllergyIntolerance",
+            "patient": f"{data_source_project_id}.{dataset_id}.patient",
+            "medicationrequest": f"{data_source_project_id}.{dataset_id}.medication_request",
+            "condition": f"{data_source_project_id}.{dataset_id}.condition",
+            "observation": f"{data_source_project_id}.{dataset_id}.observation", # For lab results, vitals
+            "allergyintolerance": f"{data_source_project_id}.{dataset_id}.allergy_intolerance",
         }                                                                      
                                                                                
     async def handle_simple_query(self, patient_id: str, query_text: str) -> list[dict]:                                                                     
@@ -32,11 +32,14 @@ class BigQueryHandler:
         if "medication" in query_text.lower():                                 
             # IMPORTANT: Always use parameterized queries to prevent SQL injection                                                                       
             sql_query = f"""                                                   
-                SELECT M.medicationCodeableConcept.text                        
+                SELECT M.medication.codeableConcept.text                        
                 FROM `{self.fhir_base_tables['medicationrequest']}` AS M       
                 WHERE M.subject.patientId = @patient_id                        
             """                                                                
-            query_params = [bigquery.ScalarQueryParameter("patient_id","STRING", patient_id)]                                                          
+            query_params = [bigquery.ScalarQueryParameter("patient_id","STRING", patient_id)]   
+            print("SQL_query:", sql_query)   
+            print("Query_params:", query_params) 
+
         elif "allergies" in query_text.lower():                                
             sql_query = f"""                                                  
                 SELECT A.code.text                                             
