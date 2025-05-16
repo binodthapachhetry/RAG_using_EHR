@@ -8,11 +8,11 @@ class BigQueryHandler:
         self.project_id = project_id                                           
         self.dataset_id = dataset_id                                           
         self.fhir_base_tables = {                                              
-            "patient": f"{project_id}.{dataset_id}.Patient",                   
-            "medicationrequest": f"{project_id}.{dataset_id}.MedicationRequest",                                 
-            "condition": f"{project_id}.{dataset_id}.Condition",               
-            "observation": f"{project_id}.{dataset_id}.Observation", # For lab results, vitals                                                                 
-            "allergyintolerance": f"{project_id}.{dataset_id}.AllergyIntolerance",                                
+            "patient": f"{project_id}.{dataset_id}.patient",                   
+            "medicationrequest": f"{project_id}.{dataset_id}.medication_request",                                 
+            "condition": f"{project_id}.{dataset_id}.condition",               
+            "observation": f"{project_id}.{dataset_id}.observation", # For lab results, vitals                                                                 
+            "allergyintolerance": f"{project_id}.{dataset_id}.allergy_intolerance",                                
         }                                                                      
                                                                                
     async def handle_simple_query(self, patient_id: str, query_text: str) ->   list[dict]:                                                                     
