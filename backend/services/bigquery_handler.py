@@ -50,4 +50,4 @@ class BigQueryHandler:
                                                                                
 def get_bigquery_handler():                                                    
     # This could involve more complex setup or pooling in a real app           
-    return BigQueryHandler(project_id=settings.GCP_PROJECT_ID,dataset_id=settings.FHIR_DATASET_ID) 
+    return BigQueryHandler(project_id=settings.BIGQUERY_PROJECT_ID,dataset_id=settings.FHIR_DATASET_ID) 
