@@ -44,10 +44,8 @@ class BigQueryHandler:
         else:                                                                  
             return [{"error": "Unsupported simple query type."}]               
                                                                                
-        job_config = bigquery.QueryJobConfig(query_parameters=query_params)    
-        query_job = self.client.query(sql_query, job_config=job_config)        
-        results = [dict(row) for row in query_job.result()] # Convert to list of dicts                                                                        
-        return results                                                         
+        # Use the _run_query helper to execute the query asynchronously
+        return await self._run_query(sql_query, query_params)
 
     async def _run_query(self, sql_query: str, query_params: list[bigquery.ScalarQueryParameter] | None = None) -> list[dict]:
         """
@@ -171,4 +169,8 @@ class BigQueryHandler:
                                                                                
 def get_bigquery_handler():                                                    
     # This could involve more complex setup or pooling in a real app           
-    return BigQueryHandler(project_id=settings.BIGQUERY_PROJECT_ID, dataset_id=settings.FHIR_DATASET_ID) 
+    return BigQueryHandler(
+        job_exec_project_id=settings.VERTEX_AI_PROJECT_ID, # Project where jobs run & are billed
+        data_source_project_id=settings.BIGQUERY_PROJECT_ID, # Project where FHIR data resides
+        dataset_id=settings.FHIR_DATASET_ID
+    )
