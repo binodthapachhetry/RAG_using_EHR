@@ -4,6 +4,7 @@ from vanna.google import GoogleGeminiChat # Changed from vanna.vertex
 from vanna.google import BigQuery_VectorStore # Assuming this is available after pip install "vanna[google]"
 
 from ..config import settings
+from google.oauth2 import service_account
 
 # Fully qualified table names for training
 PATIENT_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.Patient`"
@@ -70,7 +71,7 @@ TRAINING_DDLS = [
 # Create a new class that inherits from the specific LLM and Database connectors
 # These specific connectors (GoogleGeminiChat, GoogleBigQuery) already inherit from VannaBase.
 class VannaBigQueryGemini(GoogleGeminiChat, BigQuery_VectorStore):
-    def __init__(self, gemini_config: dict, bigquery_config: dict):
+    def __init__(self, gemini_config: dict, bigquery_config: dict) :
         # Initialize GoogleGeminiChat for LLM (Vertex AI Gemini)
         # It expects project, location (region), and model.
         GoogleGeminiChat.__init__(self, config=gemini_config)
@@ -90,8 +91,23 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
         }
         # The project_id for BigQuery is where the BQ jobs will run.
         # Vanna uses fully qualified table names from training data for queries.
-        bigquery_db_config = {'project_id': settings.VERTEX_AI_PROJECT_ID}
+        bigquery_db_config = {
+            'project_id': settings.VERTEX_AI_PROJECT_ID,
+            'bigquery_dataset_name': 'bigquery_public_data'
+        }
+        
         self.vn = VannaBigQueryGemini(gemini_config=gemini_llm_config, bigquery_config=bigquery_db_config)
+
+        credentials = service_account.Credentials.from_service_account_file(
+            settings.JSON_FILE_PATH,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+
+        self.vn.connect_to_bigquery(
+            project_id= settings.BIGQUERY_PROJECT_ID,
+            dataset_id= settings.FHIR_DATASET_ID,
+            credentials=credentials
+            )
         
         # Basic training (idempotent, Vanna typically stores training data)
         # In a production setup, you might manage training data more robustly.
