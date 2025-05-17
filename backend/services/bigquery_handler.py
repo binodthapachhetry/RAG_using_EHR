@@ -61,7 +61,7 @@ class BigQueryHandler:
         
         # Explicitly set the location for the query job to US, as public data is there.
         # This helps ensure the job runs in the same general location as the data.
-        # job_config.location = "US"
+        job_config.location = "US"
         
         # This is the synchronous part that will be run in a separate thread
         def sync_bq_call():

@@ -3,35 +3,67 @@ from vanna.google import VannaGoogleVertexAI
 from vanna.google.bigquery import VannaBigQuery
 from ..config import settings
 
+# Fully qualified table names for training
+PATIENT_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.Patient`"
+MED_REQ_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.MedicationRequest`"
+CONDITION_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.Condition`"
+OBSERVATION_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.Observation`"
+ALLERGY_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.AllergyIntolerance`"
+
 # Vanna needs to be "trained" on your schema.
 # This is a simplified representation. In a real scenario, you would provide
 # more comprehensive DDLs, documentation strings, and potentially sample SQL queries.
 # IMPORTANT: Use PascalCase for table names as in fhir_synthea.
+# Use fully qualified table names in DDLs for clarity with Vanna.
 TRAINING_DDLS = [
-    """
-    CREATE TABLE Patient (
+    f"""
+    CREATE TABLE {PATIENT_TABLE_FQ} (
         id STRING,
-        name JSON, -- Actually an ARRAY<STRUCT<text STRING, ...>>
+        name JSON, -- To get first text name: (SELECT n.text FROM UNNEST(name) AS n LIMIT 1)
         gender STRING,
-        birthDate DATE
-        -- ... other relevant columns
-        -- For Vanna: Patient ID is typically 'id'. If queries use 'patient_id', ensure Vanna knows 'id' is the patient identifier.
-        -- You can add documentation: vn.add_documentation(table="Patient", doc="Table for patient demographic data. Use 'id' to filter by patient.")
+        birthDate DATE,
+        address JSON -- To get first city: (SELECT a.city FROM UNNEST(address) AS a LIMIT 1)
     );
     """,
-    """
-    CREATE TABLE MedicationRequest (
+    f"""
+    CREATE TABLE {MED_REQ_TABLE_FQ} (
         id STRING,
         status STRING,
-        medicationCodeableConcept JSON, -- Actually a STRUCT<text STRING, coding ARRAY<STRUCT<...>>>
-        subject JSON -- Actually a STRUCT<patientId STRING, type STRING, ...>
-        -- ... other relevant columns
-        -- For Vanna: vn.add_documentation(table="MedicationRequest", doc="Table for medication orders. Filter by patient using subject.patientId = :patient_id.")
+        medicationCodeableConcept JSON, -- To get medication name: medicationCodeableConcept.text
+        subject JSON, -- To get patientId: subject.patientId
+        authoredOn TIMESTAMP
     );
     """,
-    # Add DDLs for Condition, Observation, AllergyIntolerance etc.
-    # Example for making patient_id parameter work:
-    # vn.add_documentation(table="Condition", column="subject.patientId", doc="Filter this column using the 'patient_id' parameter provided in the question context.")
+    f"""
+    CREATE TABLE {CONDITION_TABLE_FQ} (
+        id STRING,
+        clinicalStatus JSON, -- Example: clinicalStatus.coding[OFFSET(0)].code
+        verificationStatus JSON, -- Example: verificationStatus.coding[OFFSET(0)].code
+        code JSON, -- To get condition name: code.text
+        subject JSON -- To get patientId: subject.patientId
+    );
+    """,
+    f"""
+    CREATE TABLE {OBSERVATION_TABLE_FQ} (
+        id STRING,
+        status STRING,
+        code JSON, -- To get observation name: code.text or code.coding[OFFSET(0)].display
+        subject JSON, -- To get patientId: subject.patientId
+        effectiveDateTime TIMESTAMP,
+        valueQuantity JSON, -- For numeric values: valueQuantity.value, valueQuantity.unit
+        valueString STRING,
+        valueCodeableConcept JSON -- For coded values: valueCodeableConcept.text
+    );
+    """,
+    f"""
+    CREATE TABLE {ALLERGY_TABLE_FQ} (
+        id STRING,
+        clinicalStatus JSON, -- Example: clinicalStatus.coding[OFFSET(0)].code
+        verificationStatus JSON,
+        code JSON, -- To get allergy name: code.text
+        patient JSON -- To get patientId: patient.patientId
+    );
+    """,
 ]
 
 class VannaHandler:
@@ -42,21 +74,54 @@ class VannaHandler:
         
         # Configure Vanna to connect to BigQuery
         # It uses Application Default Credentials (ADC)
-        self.vn.connect_to_bigquery(project_id=settings.VERTEX_AI_PROJECT_ID, dataset_id=settings.FHIR_DATASET_ID)
-        # Note: Vanna's BigQuery connector might run jobs in settings.VERTEX_AI_PROJECT_ID
-        # and query data from settings.BIGQUERY_PROJECT_ID.FHIR_DATASET_ID if its internal
-        # logic correctly handles fully qualified table names from training.
+        # The project_id here is for the BigQuery client operations (where jobs run).
+        # The dataset_id is less relevant if all table names in DDLs/SQL are fully qualified.
+        self.vn.connect_to_bigquery(project_id=settings.VERTEX_AI_PROJECT_ID) 
+        # We are using fully qualified table names in DDLs and SQL samples,
+        # so Vanna will query `bigquery-public-data.fhir_synthea.YourTable`.
         # If not, you might need to ensure Vanna is trained with fully qualified names
         # or that the default project for the BigQuery client it instantiates is VERTEX_AI_PROJECT_ID.
 
         # Basic training (idempotent, Vanna typically stores training data)
         # In a production setup, you might manage training data more robustly.
         existing_training_data = self.vn.get_training_data()
-        if not existing_training_data or len(existing_training_data) < len(TRAINING_DDLS):
-             for ddl in TRAINING_DDLS:
-                 self.vn.train(ddl=ddl)
-             # Add specific documentation for patient_id if needed for your Vanna version/setup
-             self.vn.train(documentation="When a question refers to 'the patient' or provides a 'patient_id', ensure SQL queries filter data for that specific patient. For example, in the MedicationRequest table, use subject.patientId = :patient_id. In the Patient table, use id = :patient_id.")
+        if not existing_training_data or len(existing_training_data) < len(TRAINING_DDLS): # Simple check
+            print("Training Vanna with DDLs, documentation, and SQL samples...")
+            for ddl in TRAINING_DDLS:
+                self.vn.train(ddl=ddl)
+            
+            # General Documentation
+            self.vn.train(documentation="When a question refers to 'the patient' or includes a 'patient_id', filter data for that specific patient. Use the patient_id in a WHERE clause.")
+
+            # Table/Column Specific Documentation
+            self.vn.train(documentation=f"Patient data is in {PATIENT_TABLE_FQ}. Filter by patient ID using 'id = :patient_id'. Get name from 'name' JSON field, e.g., (SELECT n.text FROM UNNEST(name) AS n LIMIT 1).")
+            self.vn.train(documentation=f"Medication orders are in {MED_REQ_TABLE_FQ}. Filter by patient using 'subject.patientId = :patient_id'. Get medication name from 'medicationCodeableConcept.text'. Active medications have 'status = \"active\"'.")
+            self.vn.train(documentation=f"Patient conditions are in {CONDITION_TABLE_FQ}. Filter by patient using 'subject.patientId = :patient_id'. Get condition name from 'code.text'.")
+            self.vn.train(documentation=f"Patient observations (labs, vitals) are in {OBSERVATION_TABLE_FQ}. Filter by patient using 'subject.patientId = :patient_id'. Get observation name from 'code.text'. Numeric values are in 'valueQuantity.value' with units in 'valueQuantity.unit'.")
+            self.vn.train(documentation=f"Patient allergies are in {ALLERGY_TABLE_FQ}. Filter by patient using 'patient.patientId = :patient_id'. Get allergy name from 'code.text'.")
+
+            # SQL Samples (using fully qualified names)
+            self.vn.train(
+                question="What are the active medications for patient 'patient123'?",
+                sql=f"SELECT T1.medicationCodeableConcept.text FROM {MED_REQ_TABLE_FQ} AS T1 WHERE T1.subject.patientId = 'patient123' AND T1.status = 'active'"
+            )
+            self.vn.train(
+                question="List all conditions for patient 'patient456'.",
+                sql=f"SELECT T1.code.text FROM {CONDITION_TABLE_FQ} AS T1 WHERE T1.subject.patientId = 'patient456'"
+            )
+            self.vn.train(
+                question="What is the gender of patient 'patient789'?",
+                sql=f"SELECT T1.gender FROM {PATIENT_TABLE_FQ} AS T1 WHERE T1.id = 'patient789'"
+            )
+            self.vn.train(
+                question="Show me the name of patient 'patient001'.",
+                sql=f"SELECT (SELECT n.text FROM UNNEST(T1.name) AS n LIMIT 1) AS patient_name FROM {PATIENT_TABLE_FQ} AS T1 WHERE T1.id = 'patient001'"
+            )
+            self.vn.train(
+                question="What was the last recorded systolic blood pressure for patient 'patient002'?",
+                sql=f"SELECT T1.valueQuantity.value FROM {OBSERVATION_TABLE_FQ} AS T1 WHERE T1.subject.patientId = 'patient002' AND T1.code.text = 'Systolic blood pressure' ORDER BY T1.effectiveDateTime DESC LIMIT 1"
+            )
+            print("Vanna training submitted.")
 
     async def get_response(self, natural_language_query: str, patient_id: str) -> tuple[str | None, str | None]:
         # Use patient_id as a parameter that Vanna can potentially use in SQL
