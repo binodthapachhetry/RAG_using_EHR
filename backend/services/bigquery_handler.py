@@ -11,11 +11,11 @@ class BigQueryHandler:
         self.dataset_id = dataset_id
         # Table names are PascalCase in FHIR BigQuery datasets
         self.fhir_base_tables = {
-            "patient": f"{data_source_project_id}.{dataset_id}.patient",
-            "medicationrequest": f"{data_source_project_id}.{dataset_id}.medication_request",
-            "condition": f"{data_source_project_id}.{dataset_id}.condition",
-            "observation": f"{data_source_project_id}.{dataset_id}.observation", # For lab results, vitals
-            "allergyintolerance": f"{data_source_project_id}.{dataset_id}.allergy_intolerance",
+            "patient": f"{data_source_project_id}.{dataset_id}.Patient",
+            "medicationrequest": f"{data_source_project_id}.{dataset_id}.MedicationRequest",
+            "condition": f"{data_source_project_id}.{dataset_id}.Condition",
+            "observation": f"{data_source_project_id}.{dataset_id}.Observation", # For lab results, vitals
+            "allergyintolerance": f"{data_source_project_id}.{dataset_id}.AllergyIntolerance",
         }
                                                                                
     async def handle_simple_query(self, patient_id: str, query_text: str) -> list[dict]:                                                                     
