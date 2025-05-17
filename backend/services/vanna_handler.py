@@ -95,7 +95,7 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
         # Basic training (idempotent, Vanna typically stores training data)
         # In a production setup, you might manage training data more robustly.
         existing_training_data = self.vn.get_training_data()
-        if not existing_training_data or len(existing_training_data) < len(TRAINING_DDLS): # Simple check
+        if existing_training_data.empty or len(existing_training_data) < len(TRAINING_DDLS): # Simple check
             print("Training Vanna with DDLs, documentation, and SQL samples...")
             for ddl in TRAINING_DDLS:
                 self.vn.train(ddl=ddl)
