@@ -1,6 +1,7 @@
 fastapi                                                                        
-uvicorn[standard]                                                              
-pydantic                                                                       
+uvicorn                                                              
+pydantic    
+dotenv                                                                   
                                                                               
 # GCP Libraries                                                                
 google-cloud-bigquery                                                          
