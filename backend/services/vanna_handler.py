@@ -1,6 +1,7 @@
 import vanna
-from vanna.google import VannaGoogleVertexAI
-from vanna.google.bigquery import VannaBigQuery
+# Corrected imports for Vanna Vertex AI and BigQuery connectors
+from vanna.google_vertexai import VertexAI_Chat
+from vanna.bigquery import BigQuery
 from ..config import settings
 
 # Fully qualified table names for training
@@ -65,22 +66,26 @@ TRAINING_DDLS = [
     );
     """,
 ]
+# Create a new class that inherits from the LLM and Database connectors
+class VannaCombined(VertexAI_Chat, BigQuery):
+    def __init__(self, vertex_ai_project: str, vertex_ai_region: str, vertex_ai_model: str, bigquery_job_project: str):
+        VertexAI_Chat.__init__(self, project_id=vertex_ai_project, location=vertex_ai_region, model=vertex_ai_model)
+        # For BigQuery, we only need to specify the project where jobs will run.
+        # Vanna will use fully qualified names for tables from training data.
+        BigQuery.__init__(self, project_id=bigquery_job_project)
 
 class VannaHandler:
     def __init__(self):
-        # Configure Vanna to use Google Vertex AI (Gemini) for LLM tasks
-        # VannaGoogleVertexAI handles both SQL generation and Natural Language generation
-        self.vn = VannaGoogleVertexAI(project=settings.VERTEX_AI_PROJECT_ID, region=settings.GCP_REGION, model=settings.LLM_MODEL_NAME)
-        
-        # Configure Vanna to connect to BigQuery
-        # It uses Application Default Credentials (ADC)
-        # The project_id here is for the BigQuery client operations (where jobs run).
-        # The dataset_id is less relevant if all table names in DDLs/SQL are fully qualified.
-        self.vn.connect_to_bigquery(project_id=settings.VERTEX_AI_PROJECT_ID) 
-        # We are using fully qualified table names in DDLs and SQL samples,
-        # so Vanna will query `bigquery-public-data.fhir_synthea.YourTable`.
-        # If not, you might need to ensure Vanna is trained with fully qualified names
-        # or that the default project for the BigQuery client it instantiates is VERTEX_AI_PROJECT_ID.
+        # Instantiate the combined Vanna class
+        self.vn = VannaCombined(
+            vertex_ai_project=settings.VERTEX_AI_PROJECT_ID,
+            vertex_ai_region=settings.GCP_REGION,
+            vertex_ai_model=settings.LLM_MODEL_NAME,
+            bigquery_job_project=settings.VERTEX_AI_PROJECT_ID # Project where BQ jobs run
+        )
+        # The self.vn.connect_to_bigquery() call is no longer needed as the
+        # BigQuery base class handles connection during its __init__.
+
 
         # Basic training (idempotent, Vanna typically stores training data)
         # In a production setup, you might manage training data more robustly.
