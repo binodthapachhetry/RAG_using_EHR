@@ -1,6 +1,6 @@
 import vanna
 # Corrected imports for Vanna Vertex AI and BigQuery connectors
-from vanna.google_vertexai import VertexAI_Chat
+from vanna.vertex import VertexAI_Chat # Changed from vanna.google_vertexai
 from vanna.bigquery import BigQuery
 from ..config import settings
 
