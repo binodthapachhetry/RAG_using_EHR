@@ -1,7 +1,7 @@
 import vanna
 # Corrected imports for Vanna Vertex AI and BigQuery connectors
 from vanna.google import GoogleGeminiChat # Changed from vanna.vertex
-from vanna.google import GoogleBigQuery # Assuming this is available after pip install "vanna[google]"
+from vanna.google import BigQuery_VectorStore # Assuming this is available after pip install "vanna[google]"
 
 from ..config import settings
 
@@ -69,7 +69,7 @@ TRAINING_DDLS = [
 ]
 # Create a new class that inherits from the specific LLM and Database connectors
 # These specific connectors (GoogleGeminiChat, GoogleBigQuery) already inherit from VannaBase.
-class VannaBigQueryGemini(GoogleGeminiChat, GoogleBigQuery):
+class VannaBigQueryGemini(GoogleGeminiChat, BigQuery_VectorStore):
     def __init__(self, gemini_config: dict, bigquery_config: dict):
         # Initialize GoogleGeminiChat for LLM (Vertex AI Gemini)
         # It expects project, location (region), and model.
@@ -77,14 +77,15 @@ class VannaBigQueryGemini(GoogleGeminiChat, GoogleBigQuery):
         
         # Initialize GoogleBigQuery for database connection
         # It expects project_id where jobs will run.
-        GoogleBigQuery.__init__(self, config=bigquery_config)
+        BigQuery_VectorStore.__init__(self, config=bigquery_config)
 
 class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
     def __init__(self):
         gemini_llm_config = {
             'project_id': settings.VERTEX_AI_PROJECT_ID,
             'location': settings.GCP_REGION, # GCP_REGION from your config.py
-            'model': settings.LLM_MODEL_NAME
+            'model': settings.LLM_MODEL_NAME,
+            'google_credentials': settings.JSON_FILE_PATH
         }
         # The project_id for BigQuery is where the BQ jobs will run.
         # Vanna uses fully qualified table names from training data for queries.
