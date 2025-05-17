@@ -11,11 +11,11 @@ class BigQueryHandler:
         self.dataset_id = dataset_id
         # Table names are PascalCase in FHIR BigQuery datasets
         self.fhir_base_tables = {
-            "patient": f"{data_source_project_id}.{dataset_id}.Patient",
-            "medicationrequest": f"{data_source_project_id}.{dataset_id}.MedicationRequest",
-            "condition": f"{data_source_project_id}.{dataset_id}.Condition",
-            "observation": f"{data_source_project_id}.{dataset_id}.Observation", # For lab results, vitals
-            "allergyintolerance": f"{data_source_project_id}.{dataset_id}.AllergyIntolerance",
+            "patient": f"{data_source_project_id}.{dataset_id}.patient",
+            "medicationrequest": f"{data_source_project_id}.{dataset_id}.medication_request",
+            "condition": f"{data_source_project_id}.{dataset_id}.condition",
+            "observation": f"{data_source_project_id}.{dataset_id}.observation", # For lab results, vitals
+            "allergyintolerance": f"{data_source_project_id}.{dataset_id}.allergy_intolerance",
         }
                                                                                
     async def handle_simple_query(self, patient_id: str, query_text: str) -> list[dict]:                                                                     
@@ -61,7 +61,7 @@ class BigQueryHandler:
         
         # Explicitly set the location for the query job to US, as public data is there.
         # This helps ensure the job runs in the same general location as the data.
-        job_config.location = "US"
+        # job_config.location = "US"
         
         # This is the synchronous part that will be run in a separate thread
         def sync_bq_call():

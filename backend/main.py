@@ -23,6 +23,7 @@ async def handle_chat_request(
                                                                               
     if query_type == QueryType.SIMPLE:                                         
         result = await bq_handler.handle_simple_query(patient_id, query_text)  
+        print("Result:", result)
     elif query_type == QueryType.COMPLEX:                                      
         result = await rag_handler.handle_complex_query(patient_id, query_text)
     else:                                                                      
