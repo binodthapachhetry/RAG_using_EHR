@@ -147,8 +147,8 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
             # For simplicity, assuming it returns the NL answer directly or we extract it.
             # If nl_answer is an object, you might need nl_answer.text or similar.
             # Getting the last generated SQL query
-            sql_query = self.vn.last_sql_ # Get the last SQL query from the Vanna instance attribute
-            return str(nl_answer) if nl_answer else "I could not generate an answer.", sql_query
+            # sql_query = self.vn.last_sql_ # Get the last SQL query from the Vanna instance attribute
+            return str(nl_answer) if nl_answer else "I could not generate an answer."
         except Exception as e:
             print(f"Error during Vanna interaction: {e}")
             return f"An error occurred while processing your request with Vanna: {str(e)}", None
