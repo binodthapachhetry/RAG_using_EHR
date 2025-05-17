@@ -42,6 +42,27 @@ class RagLlmHandler:
         prompt = f"Based on the following patient context:\n{context}\n\nAnswer the question: {query_text}"
         response = self.llm_client.generate_content(prompt)
         return response.text # Access the text part of the response
+
+    async def generate_summary_from_data(self, structured_data: list[dict], original_query: str) -> str:
+        """
+        Generates a human-readable summary or answer based on structured data retrieved
+        from a simple query.
+        """
+        if not structured_data:
+            # Handle cases where the simple query returned no data
+            # Ask LLM to state that no information was found regarding the query
+            prompt = f"The user asked: '{original_query}'. No specific data was found for this request. Please inform the user politely that the requested information is not available or not found for this patient."
+        elif isinstance(structured_data, list) and structured_data and isinstance(structured_data[0], dict) and "error" in structured_data[0]:
+            # Handle cases where the simple query handler itself returned an error (e.g., unsupported query)
+            error_message = structured_data[0]["error"]
+            prompt = f"The user asked: '{original_query}'. However, there was an issue processing this request: {error_message}. Please inform the user politely about this issue."
+        else:
+            # Format the structured data into a string for the prompt
+            data_as_string = "\n".join([str(item) for item in structured_data])
+            prompt = f"Based on the following retrieved data:\n{data_as_string}\n\nPlease answer the user's original question: '{original_query}'. Present the information clearly and concisely in a human-readable format."
+        
+        response = self.llm_client.generate_content(prompt)
+        return response.text
                                                                                
 def get_rag_llm_handler():                                                     
     bq_handler = get_bigquery_handler() # Or a new instance if different config needed                                                                          

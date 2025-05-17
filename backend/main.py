@@ -19,15 +19,17 @@ async def handle_chat_request(
     """                                                                        
     Handles incoming chat requests, routes them, and returns a response.       
     """                                                                        
-    query_type, patient_id, query_text = route_query(request.query,request.patient_id)                                                             
-                                                                              
+    query_type, patient_id, query_text_for_handler = route_query(request.query, request.patient_id)
+    llm_generated_answer: str
+                                                                               
     if query_type == QueryType.SIMPLE:                                         
-        result = await bq_handler.handle_simple_query(patient_id, query_text)  
-        print("Result:", result)
+        retrieved_data = await bq_handler.handle_simple_query(patient_id, query_text_for_handler)
+        print("Retrieved data for simple query:", retrieved_data) # User's existing print
+        # Pass the original request.query to the summarization function
+        llm_generated_answer = await rag_handler.generate_summary_from_data(retrieved_data, request.query)
     elif query_type == QueryType.COMPLEX:                                      
-        result = await rag_handler.handle_complex_query(patient_id, query_text)
+        llm_generated_answer = await rag_handler.handle_complex_query(patient_id, query_text_for_handler)
     else:                                                                      
         raise HTTPException(status_code=400, detail="Could not determine query type.")                                                                         
                                                                                
-    return ChatResponse(answer=str(result), patient_id=request.patient_id, session_id=request.session_id,
-query_type=query_type) 
+    return ChatResponse(answer=llm_generated_answer, patient_id=request.patient_id, session_id=request.session_id, query_type=query_type) 
