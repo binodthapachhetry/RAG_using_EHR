@@ -1,7 +1,8 @@
 import vanna
 # Corrected imports for Vanna Vertex AI and BigQuery connectors
 from vanna.google import GoogleGeminiChat # Changed from vanna.vertex
-from vanna.google import GoogleBigQuery # Changed from vanna.bigquery
+from vanna.base import VannaBase
+
 from ..config import settings
 
 # Fully qualified table names for training
@@ -67,26 +68,16 @@ TRAINING_DDLS = [
     """,
 ]
 # Create a new class that inherits from the LLM and Database connectors
-class VannaCombined(GoogleGeminiChat, GoogleBigQuery):
-    def __init__(self, vertex_ai_project: str, vertex_ai_region: str, vertex_ai_model: str, bigquery_job_project: str):
-        GoogleGeminiChat.__init__(self, project_id=vertex_ai_project, location=vertex_ai_region, model=vertex_ai_model)
-        # For BigQuery, we only need to specify the project where jobs will run.
-        # Vanna will use fully qualified names for tables from training data.
-        GoogleBigQuery.__init__(self, project_id=bigquery_job_project)
+class VannaCombined(VannaBase, GoogleGeminiChat):
+    def __init__(self, config=None):
+        VannaBase.__init__(self, config=config)
+        GoogleGeminiChat.__init__(self, config={'api_key': settings.GEMINI_API_KEY, 'model':settings.LLM_MODEL_NAME})
 
-class VannaHandler:
-    def __init__(self):
-        # Instantiate the combined Vanna class
-        self.vn = VannaCombined(
-            vertex_ai_project=settings.VERTEX_AI_PROJECT_ID,
-            vertex_ai_region=settings.GCP_REGION,
-            vertex_ai_model=settings.LLM_MODEL_NAME,
-            bigquery_job_project=settings.VERTEX_AI_PROJECT_ID # Project where BQ jobs run
-        )
-        # The self.vn.connect_to_bigquery() call is no longer needed as the
-        # BigQuery base class handles connection during its __init__.
-
-
+class VannaHandler(VannaBase, GoogleGeminiChat):
+    def __init__(self, config=None):
+        self.vn = VannaCombined()
+    
+        self.vn.connect_to_bigquery(project_id=settings.GCP_PROJECT_ID)
         # Basic training (idempotent, Vanna typically stores training data)
         # In a production setup, you might manage training data more robustly.
         existing_training_data = self.vn.get_training_data()
