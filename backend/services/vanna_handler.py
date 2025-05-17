@@ -1,7 +1,7 @@
 import vanna
 # Corrected imports for Vanna Vertex AI and BigQuery connectors
 from vanna.google import GoogleGeminiChat # Changed from vanna.vertex
-from vanna.base import VannaBase
+from vanna.google import GoogleBigQuery # Assuming this is available after pip install "vanna[google]"
 
 from ..config import settings
 
@@ -67,17 +67,30 @@ TRAINING_DDLS = [
     );
     """,
 ]
-# Create a new class that inherits from the LLM and Database connectors
-class VannaCombined(VannaBase, GoogleGeminiChat):
-    def __init__(self, config=None):
-        VannaBase.__init__(self, config=config)
-        GoogleGeminiChat.__init__(self, config={'api_key': settings.GEMINI_API_KEY, 'model':settings.LLM_MODEL_NAME})
+# Create a new class that inherits from the specific LLM and Database connectors
+# These specific connectors (GoogleGeminiChat, GoogleBigQuery) already inherit from VannaBase.
+class VannaBigQueryGemini(GoogleGeminiChat, GoogleBigQuery):
+    def __init__(self, gemini_config: dict, bigquery_config: dict):
+        # Initialize GoogleGeminiChat for LLM (Vertex AI Gemini)
+        # It expects project, location (region), and model.
+        GoogleGeminiChat.__init__(self, config=gemini_config)
+        
+        # Initialize GoogleBigQuery for database connection
+        # It expects project_id where jobs will run.
+        GoogleBigQuery.__init__(self, config=bigquery_config)
 
-class VannaHandler(VannaBase, GoogleGeminiChat):
-    def __init__(self, config=None):
-        self.vn = VannaCombined()
-    
-        self.vn.connect_to_bigquery(project_id=settings.GCP_PROJECT_ID)
+class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
+    def __init__(self):
+        gemini_llm_config = {
+            'project_id': settings.VERTEX_AI_PROJECT_ID,
+            'location': settings.GCP_REGION, # GCP_REGION from your config.py
+            'model': settings.LLM_MODEL_NAME
+        }
+        # The project_id for BigQuery is where the BQ jobs will run.
+        # Vanna uses fully qualified table names from training data for queries.
+        bigquery_db_config = {'project_id': settings.VERTEX_AI_PROJECT_ID}
+        self.vn = VannaBigQueryGemini(gemini_config=gemini_llm_config, bigquery_config=bigquery_db_config)
+        
         # Basic training (idempotent, Vanna typically stores training data)
         # In a production setup, you might manage training data more robustly.
         existing_training_data = self.vn.get_training_data()
