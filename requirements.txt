@@ -1,7 +1,8 @@
 fastapi                                                                        
 uvicorn                                                              
 pydantic    
-dotenv                                                                   
+dotenv     
+db-dtypes                                                              
                                                                               
 # GCP Libraries                                                                
 google-cloud-bigquery                                                          
@@ -10,4 +11,4 @@ google-cloud-bigquery
 langchain                                                                    
 vertexai                                                                       
 google-cloud-aiplatform
-vanna
+vanna[gemini,bigquery]

@@ -84,8 +84,9 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
         gemini_llm_config = {
             'project_id': settings.VERTEX_AI_PROJECT_ID,
             'location': settings.GCP_REGION, # GCP_REGION from your config.py
-            'model': settings.LLM_MODEL_NAME,
-            'google_credentials': settings.JSON_FILE_PATH
+            'model_name': settings.LLM_MODEL_NAME,
+            'google_credentials': settings.JSON_FILE_PATH,
+            'api_key': settings.LLM_API_KEY
         }
         # The project_id for BigQuery is where the BQ jobs will run.
         # Vanna uses fully qualified table names from training data for queries.
@@ -140,13 +141,13 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
         try:
             # Pass patient_id as a context variable that Vanna might use if trained for it
             # The key 'patient_id' here must match how you've trained Vanna to expect it (e.g., in documentation strings)
-            nl_answer = self.vn.ask(question=natural_language_query, patient_id=patient_id, print_results=False)
+            nl_answer = self.vn.ask(question=natural_language_query, print_results=False)
             # vn.ask usually returns a string (NL answer) or a Vanna.AskResponse object depending on version/config
             # For simplicity, assuming it returns the NL answer directly or we extract it.
             # If nl_answer is an object, you might need nl_answer.text or similar.
             # Getting the last generated SQL query
-            sql_query = vanna.get_last_sql_query() # Utility to get the last SQL query Vanna generated
-            return str(nl_answer) if nl_answer else "I could not generate an answer.", sql_query
+            # sql_query = vanna.get_last_sql_query() # Utility to get the last SQL query Vanna generated
+            return str(nl_answer) if nl_answer else "I could not generate an answer."
         except Exception as e:
             print(f"Error during Vanna interaction: {e}")
             return f"An error occurred while processing your request with Vanna: {str(e)}", None
