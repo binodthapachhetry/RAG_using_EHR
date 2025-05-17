@@ -139,9 +139,10 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
         # The vn.ask method attempts to generate SQL, run it, and generate a natural language response.
         # It can also return charts, but we're interested in the text response and SQL.
         try:
-            # Pass patient_id as a context variable that Vanna might use if trained for it
-            # The key 'patient_id' here must match how you've trained Vanna to expect it (e.g., in documentation strings)
-            nl_answer = self.vn.ask(question=natural_language_query, patient_id=patient_id, print_results=False)
+            # Include patient_id in the question string for Vanna to use.
+            # Vanna's training should be set up to recognize and use this patient_id.
+            question_with_context = f"For patient ID '{patient_id}': {natural_language_query}"
+            nl_answer = self.vn.ask(question=question_with_context, print_results=False)
             # vn.ask usually returns a string (NL answer) or a Vanna.AskResponse object depending on version/config
             # For simplicity, assuming it returns the NL answer directly or we extract it.
             # If nl_answer is an object, you might need nl_answer.text or similar.
