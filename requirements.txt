@@ -6,6 +6,7 @@ db-dtypes
                                                                               
 # GCP Libraries                                                                
 google-cloud-bigquery                                                          
+google-cloud-bigquery-storage # Optional: For faster BigQuery downloads
                                                                               
 # LLM/RAG Libraries (examples, choose specific ones later)                     
 langchain                                                                    
