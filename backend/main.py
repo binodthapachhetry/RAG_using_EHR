@@ -1,8 +1,9 @@
 from fastapi import FastAPI, HTTPException, Depends                            
 from .api.models import ChatRequest, ChatResponse, QueryType                   
-from .services.query_router import route_query                                 
-from .services.bigquery_handler import BigQueryHandler, get_bigquery_handler   
-from .services.rag_llm_handler import RagLlmHandler, get_rag_llm_handler       
+# from .services.query_router import route_query # No longer primary router
+from .services.bigquery_handler import BigQueryHandler, get_bigquery_handler # May still be needed for RAG or direct execution
+from .services.rag_llm_handler import RagLlmHandler, get_rag_llm_handler # May be used for RAG or complex summarization
+from .services.vanna_handler import VannaHandler, get_vanna_handler
                                                                                
 app = FastAPI(                                                                 
     title="Physician Chat API",                                                
@@ -14,22 +15,32 @@ app = FastAPI(
 async def handle_chat_request(                                                 
     request: ChatRequest,                                                      
     bq_handler: BigQueryHandler = Depends(get_bigquery_handler),               
-    rag_handler: RagLlmHandler = Depends(get_rag_llm_handler)                  
+    rag_handler: RagLlmHandler = Depends(get_rag_llm_handler),
+    vanna_handler: VannaHandler = Depends(get_vanna_handler)
 ):                                                                             
     """                                                                        
     Handles incoming chat requests, routes them, and returns a response.       
+    Primarily uses Vanna.AI for text-to-SQL and response generation.
     """                                                                        
-    query_type, patient_id, query_text_for_handler = route_query(request.query, request.patient_id)
-    llm_generated_answer: str
-                                                                               
-    if query_type == QueryType.SIMPLE:                                         
-        retrieved_data = await bq_handler.handle_simple_query(patient_id, query_text_for_handler)
-        print("Retrieved data for simple query:", retrieved_data) # User's existing print
-        # Pass the original request.query to the summarization function
-        llm_generated_answer = await rag_handler.generate_summary_from_data(retrieved_data, request.query)
-    elif query_type == QueryType.COMPLEX:                                      
-        llm_generated_answer = await rag_handler.handle_complex_query(patient_id, query_text_for_handler)
-    else:                                                                      
-        raise HTTPException(status_code=400, detail="Could not determine query type.")                                                                         
-                                                                               
-    return ChatResponse(answer=llm_generated_answer, patient_id=request.patient_id, session_id=request.session_id, query_type=query_type) 
+    # For now, all queries go through Vanna.
+    # The old query_router and simple/complex distinction is bypassed.
+    # Future: Could re-introduce a router if some queries are better for RAG.
+
+    nl_answer, sql_query = await vanna_handler.get_response(
+        natural_language_query=request.query,
+        patient_id=request.patient_id
+    )
+
+    # Determine a QueryType for the response, Vanna primarily does SQL generation.
+    # If SQL was generated, we can consider it a "data query" type.
+    # This is a simplification; Vanna might do more complex things.
+    response_query_type = QueryType.SIMPLE if sql_query else QueryType.COMPLEX 
+
+    print(f"Vanna SQL Query: {sql_query}")
+    print(f"Vanna NL Answer: {nl_answer}")
+
+    return ChatResponse(answer=nl_answer or "No answer generated.", 
+                        patient_id=request.patient_id, 
+                        session_id=request.session_id, # Added session_id back
+                        query_type=response_query_type, # Simplified query type
+                        sources=[{"sql_query": sql_query}] if sql_query else None)

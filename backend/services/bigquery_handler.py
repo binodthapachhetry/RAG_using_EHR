@@ -32,7 +32,7 @@ class BigQueryHandler:
         if "medication" in query_text.lower():                                 
             # IMPORTANT: Always use parameterized queries to prevent SQL injection                                                                       
             sql_query = f"""                                                   
-                SELECT M.medication.codeableConcept.text                        
+                SELECT M.medicationCodeableConcept.text                        
                 FROM `{self.fhir_base_tables['medicationrequest']}` AS M       
                 WHERE M.subject.patientId = @patient_id                        
             """                                                                

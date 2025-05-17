@@ -9,4 +9,5 @@ google-cloud-bigquery
 # LLM/RAG Libraries (examples, choose specific ones later)                     
 langchain                                                                    
 vertexai                                                                       
-google-cloud-aiplatform 
+google-cloud-aiplatform
+vanna
