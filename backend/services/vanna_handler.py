@@ -158,14 +158,17 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
             # Include patient_id in the question string for Vanna to use.
             # Vanna's training should be set up to recognize and use this patient_id.
             question_with_context = f"For patient ID '{patient_id}': {natural_language_query}"
-            nl_answer = self.vn.ask(question=question_with_context, print_results=False)
-            print(str(nl_answer[1].iloc[0, 0]))
-            # vn.ask usually returns a string (NL answer) or a Vanna.AskResponse object depending on version/config
-            # For simplicity, assuming it returns the NL answer directly or we extract it.
-            # If nl_answer is an object, you might need nl_answer.text or similar.
-            # Getting the last generated SQL query
-            # sql_query = self.vn.last_sql_ # Get the last SQL query from the Vanna instance attribute
-            return str(nl_answer[1].iloc[0, 0]) if nl_answer else "I could not generate an answer."
+            raw_vanna_op = self.vn.ask(question=question_with_context, print_results=False)
+            final_nl_answer = "Could not retrieve an answer."
+
+            if isinstance(raw_vanna_op, tuple) and len(raw_vanna_op) > 2:
+                df_results = raw_vanna_op[1]
+                if df_results is not None and not df_results.empty:                                                                                                              
+                    final_nl_answer = f"Here are the results I found:\n{df_results.to_string(index=False, max_rows=10)}"                                                           
+                    if len(df_results) > 10:                                                                                                                                       
+                        final_nl_answer += "\n(Showing top 10 results)"  
+
+            return final_nl_answer
         except Exception as e:
             print(f"Error during Vanna interaction: {e}")
             return f"An error occurred while processing your request with Vanna: {str(e)}", None

@@ -36,9 +36,5 @@ async def handle_chat_request(
     # This is a simplification; Vanna might do more complex things.
     # response_query_type = QueryType.SIMPLE if sql_query else QueryType.COMPLEX 
 
-    # print(f"Vanna SQL Query: {sql_query}")
-    print(f"Vanna NL Answer: {nl_answer}")
-    print("Type", type(nl_answer))
-
     return ChatResponse(answer=nl_answer, 
                         patient_id=request.patient_id)

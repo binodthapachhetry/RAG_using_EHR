@@ -59,7 +59,7 @@ class RagLlmHandler:
         else:
             # Format the structured data into a string for the prompt
             data_as_string = "\n".join([str(item) for item in structured_data])
-            prompt = f"Based on the following retrieved data:\n{data_as_string}\n\nPlease answer the user's original question: '{original_query}'. Present the information clearly and concisely in a human-readable format."
+            prompt = f"Based on the following retrieved data:\n{data_as_string}\n\nPlease answer the user's original question: '{original_query}'. Present the information clearly and confidently."
         
         response = self.llm_client.generate_content(prompt)
         return response.text
