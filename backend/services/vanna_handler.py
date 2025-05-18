@@ -8,7 +8,7 @@ from google.oauth2 import service_account
 
 # Fully qualified table names for training
 PATIENT_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.Patient`"
-MED_REQ_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.MedicationRequest`"
+MED_REQ_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.medication_request`"
 CONDITION_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.Condition`"
 OBSERVATION_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.Observation`"
 ALLERGY_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.AllergyIntolerance`"
@@ -32,7 +32,7 @@ TRAINING_DDLS = [
     CREATE TABLE {MED_REQ_TABLE_FQ} (
         id STRING,
         status STRING,
-        medicationCodeableConcept JSON, -- To get medication name: medicationCodeableConcept.text
+        medication.codeableConcept JSON, -- To get medication name: medication.codeableConcept.text
         subject JSON, -- To get patientId: subject.patientId
         authoredOn TIMESTAMP
     );
@@ -93,7 +93,7 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
         # Vanna uses fully qualified table names from training data for queries.
         bigquery_db_config = {
             'project_id': settings.VERTEX_AI_PROJECT_ID,
-            'bigquery_dataset_name': 'bigquery_public_data'
+            'bigquery_dataset_name': settings.VANNA_STORAGE_DATASET
         }
         
         self.vn = VannaBigQueryGemini(gemini_config=gemini_llm_config, bigquery_config=bigquery_db_config)
@@ -104,7 +104,7 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
             )
 
         self.vn.connect_to_bigquery(
-            project_id= settings.BIGQUERY_PROJECT_ID,
+            project_id= settings.VERTEX_AI_PROJECT_ID,
             dataset_id= settings.FHIR_DATASET_ID,
             credentials=credentials
             )
@@ -122,7 +122,7 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
 
             # Table/Column Specific Documentation
             self.vn.train(documentation=f"Patient data is in {PATIENT_TABLE_FQ}. Filter by patient ID using 'id = :patient_id'. Get name from 'name' JSON field, e.g., (SELECT n.text FROM UNNEST(name) AS n LIMIT 1).")
-            self.vn.train(documentation=f"Medication orders are in {MED_REQ_TABLE_FQ}. Filter by patient using 'subject.patientId = :patient_id'. Get medication name from 'medicationCodeableConcept.text'. Active medications have 'status = \"active\"'.")
+            self.vn.train(documentation=f"Medication orders are in {MED_REQ_TABLE_FQ}. Filter by patient using 'subject.patientId = :patient_id'. Get medication name from 'medication.codeableConcept.text'. Active medications have 'status = \"active\"'.")
             self.vn.train(documentation=f"Patient conditions are in {CONDITION_TABLE_FQ}. Filter by patient using 'subject.patientId = :patient_id'. Get condition name from 'code.text'.")
             self.vn.train(documentation=f"Patient observations (labs, vitals) are in {OBSERVATION_TABLE_FQ}. Filter by patient using 'subject.patientId = :patient_id'. Get observation name from 'code.text'. Numeric values are in 'valueQuantity.value' with units in 'valueQuantity.unit'.")
             self.vn.train(documentation=f"Patient allergies are in {ALLERGY_TABLE_FQ}. Filter by patient using 'patient.patientId = :patient_id'. Get allergy name from 'code.text'.")
@@ -159,12 +159,13 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
             # Vanna's training should be set up to recognize and use this patient_id.
             question_with_context = f"For patient ID '{patient_id}': {natural_language_query}"
             nl_answer = self.vn.ask(question=question_with_context, print_results=False)
+            print(str(nl_answer[1].iloc[0, 0]))
             # vn.ask usually returns a string (NL answer) or a Vanna.AskResponse object depending on version/config
             # For simplicity, assuming it returns the NL answer directly or we extract it.
             # If nl_answer is an object, you might need nl_answer.text or similar.
             # Getting the last generated SQL query
             # sql_query = self.vn.last_sql_ # Get the last SQL query from the Vanna instance attribute
-            return str(nl_answer) if nl_answer else "I could not generate an answer."
+            return str(nl_answer[1].iloc[0, 0]) if nl_answer else "I could not generate an answer."
         except Exception as e:
             print(f"Error during Vanna interaction: {e}")
             return f"An error occurred while processing your request with Vanna: {str(e)}", None

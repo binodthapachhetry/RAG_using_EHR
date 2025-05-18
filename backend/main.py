@@ -26,7 +26,7 @@ async def handle_chat_request(
     # The old query_router and simple/complex distinction is bypassed.
     # Future: Could re-introduce a router if some queries are better for RAG.
 
-    nl_answer, sql_query = await vanna_handler.get_response(
+    nl_answer = await vanna_handler.get_response(
         natural_language_query=request.query,
         patient_id=request.patient_id
     )
@@ -34,13 +34,11 @@ async def handle_chat_request(
     # Determine a QueryType for the response, Vanna primarily does SQL generation.
     # If SQL was generated, we can consider it a "data query" type.
     # This is a simplification; Vanna might do more complex things.
-    response_query_type = QueryType.SIMPLE if sql_query else QueryType.COMPLEX 
+    # response_query_type = QueryType.SIMPLE if sql_query else QueryType.COMPLEX 
 
-    print(f"Vanna SQL Query: {sql_query}")
+    # print(f"Vanna SQL Query: {sql_query}")
     print(f"Vanna NL Answer: {nl_answer}")
+    print("Type", type(nl_answer))
 
-    return ChatResponse(answer=nl_answer or "No answer generated.", 
-                        patient_id=request.patient_id, 
-                        session_id=request.session_id, # Added session_id back
-                        query_type=response_query_type, # Simplified query type
-                        sources=[{"sql_query": sql_query}] if sql_query else None)
+    return ChatResponse(answer=nl_answer, 
+                        patient_id=request.patient_id)
