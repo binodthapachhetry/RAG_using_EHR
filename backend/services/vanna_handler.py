@@ -8,10 +8,12 @@ from google.oauth2 import service_account
 
 # Fully qualified table names for training
 PATIENT_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.Patient`"
-MED_REQ_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.medication_request`"
+MED_REQ_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.MedicationRequest`" # Corrected Casing
 CONDITION_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.Condition`"
 OBSERVATION_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.Observation`"
 ALLERGY_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.AllergyIntolerance`"
+ENCOUNTER_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.Encounter`"
+PROCEDURE_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.Procedure`"
 
 # Vanna needs to be "trained" on your schema.
 # This is a simplified representation. In a real scenario, you would provide
@@ -21,18 +23,22 @@ ALLERGY_TABLE_FQ = f"`{settings.BIGQUERY_PROJECT_ID}.{settings.FHIR_DATASET_ID}.
 TRAINING_DDLS = [
     f"""
     CREATE TABLE {PATIENT_TABLE_FQ} (
-        id STRING,
-        name JSON, -- To get first text name: (SELECT n.text FROM UNNEST(name) AS n LIMIT 1)
+        id STRING, -- Primary patient identifier
+        active BOOLEAN, -- Whether this patient record is in active use
+        name JSON, -- ARRAY<STRUCT<use STRING, text STRING, family STRING, given ARRAY<STRING>>>. For official name text: (SELECT n.text FROM UNNEST(name) AS n WHERE n.use = 'official' LIMIT 1)
         gender STRING,
         birthDate DATE,
-        address JSON -- To get first city: (SELECT a.city FROM UNNEST(address) AS a LIMIT 1)
+        deceasedBoolean BOOLEAN,
+        deceasedDateTime TIMESTAMP,
+        address JSON -- ARRAY<STRUCT<use STRING, type STRING, text STRING, city STRING, state STRING, postalCode STRING, country STRING>>. For home city: (SELECT a.city FROM UNNEST(address) AS a WHERE a.use = 'home' LIMIT 1)
     );
     """,
     f"""
     CREATE TABLE {MED_REQ_TABLE_FQ} (
         id STRING,
-        status STRING, -- e.g., 'active', 'completed'
-        medicationCodeableConcept JSON, -- To get medication name: medicationCodeableConcept.text. This is a STRUCT.
+        status STRING, -- e.g., 'active', 'completed', 'stopped'
+        intent STRING, -- e.g., 'order', 'plan'
+        medicationCodeableConcept JSON, -- STRUCT<text STRING, coding ARRAY<STRUCT<system STRING, code STRING, display STRING>>>. To get medication name: medicationCodeableConcept.text
         subject JSON, -- To get patientId: subject.patientId
         authoredOn TIMESTAMP
     );
@@ -41,20 +47,23 @@ TRAINING_DDLS = [
     CREATE TABLE {CONDITION_TABLE_FQ} (
         id STRING,
         clinicalStatus JSON, -- Example: clinicalStatus.coding[OFFSET(0)].code
-        verificationStatus JSON, -- Example: verificationStatus.coding[OFFSET(0)].code. Common values: 'confirmed', 'unconfirmed'
-        code JSON, -- To get condition name: code.text. This is a STRUCT.
-        subject JSON -- To get patientId: subject.patientId
+        verificationStatus JSON, -- Example: verificationStatus.coding[OFFSET(0)].code. Common values: 'confirmed', 'unconfirmed', 'resolved'
+        code JSON, -- STRUCT<text STRING, coding ARRAY<STRUCT<system STRING, code STRING, display STRING>>>. To get condition name: code.text
+        subject JSON, -- STRUCT<reference STRING, patientId STRING>. To get patientId: subject.patientId
+        onsetDateTime TIMESTAMP,
+        recordedDate DATE
     );
     """,
     f"""
     CREATE TABLE {OBSERVATION_TABLE_FQ} (
         id STRING,
         status STRING,
-        code JSON, -- To get observation name: code.text or code.coding[OFFSET(0)].display. This is a STRUCT.
-        subject JSON, -- To get patientId: subject.patientId
+        category JSON, -- ARRAY<STRUCT<coding ARRAY<STRUCT<system STRING, code STRING, display STRING>>>>. E.g. 'vital-signs', 'laboratory'
+        code JSON, -- STRUCT<text STRING, coding ARRAY<STRUCT<system STRING, code STRING, display STRING>>>. To get observation name: code.text or code.coding[OFFSET(0)].display
+        subject JSON, -- STRUCT<reference STRING, patientId STRING>. To get patientId: subject.patientId
         effectiveDateTime TIMESTAMP,
-        valueQuantity JSON, -- For numeric values: valueQuantity.value, valueQuantity.unit. This is a STRUCT.
-        valueString STRING,
+        valueQuantity JSON, -- STRUCT<value DECIMAL, unit STRING, system STRING, code STRING>. For numeric values: valueQuantity.value, valueQuantity.unit
+        valueString STRING, -- For string values
         valueCodeableConcept JSON -- For coded values: valueCodeableConcept.text
     );
     """,
@@ -63,8 +72,29 @@ TRAINING_DDLS = [
         id STRING,
         clinicalStatus JSON, -- Example: clinicalStatus.coding[OFFSET(0)].code
         verificationStatus JSON,
-        code JSON, -- To get allergy name: code.text. This is a STRUCT.
-        patient JSON -- To get patientId: patient.patientId
+        type STRING, -- e.g., 'allergy', 'intolerance'
+        code JSON, -- STRUCT<text STRING, coding ARRAY<STRUCT<system STRING, code STRING, display STRING>>>. To get allergy name: code.text
+        patient JSON, -- STRUCT<reference STRING, patientId STRING>. To get patientId: patient.patientId
+        recordedDate DATE
+    );
+    """,
+    f"""
+    CREATE TABLE {ENCOUNTER_TABLE_FQ} (
+        id STRING,
+        status STRING, -- e.g., 'finished', 'in-progress'
+        class JSON, -- STRUCT<system STRING, code STRING, display STRING>. e.g. code 'AMB' for ambulatory
+        type JSON, -- ARRAY<STRUCT<text STRING, coding ARRAY<STRUCT<system STRING, code STRING, display STRING>>>>. Encounter type description: type[OFFSET(0)].text
+        subject JSON, -- STRUCT<reference STRING, patientId STRING>. To get patientId: subject.patientId
+        period JSON -- STRUCT<start TIMESTAMP, end TIMESTAMP>. For encounter duration.
+    );
+    """,
+    f"""
+    CREATE TABLE {PROCEDURE_TABLE_FQ} (
+        id STRING,
+        status STRING, -- e.g., 'completed', 'in-progress'
+        code JSON, -- STRUCT<text STRING, coding ARRAY<STRUCT<system STRING, code STRING, display STRING>>>. To get procedure name: code.text
+        subject JSON, -- STRUCT<reference STRING, patientId STRING>. To get patientId: subject.patientId
+        performedPeriod JSON -- STRUCT<start TIMESTAMP, end TIMESTAMP>. For procedure duration.
     );
     """,
 ]
@@ -121,14 +151,17 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
             self.vn.train(documentation="When a question refers to 'the patient' or includes a 'patient_id', filter data for that specific patient. Use the patient_id in a WHERE clause.")
 
             # Table/Column Specific Documentation
-            self.vn.train(documentation=f"The table {PATIENT_TABLE_FQ} contains patient demographic information. Filter by patient ID using 'id = :patient_id'.")
-            self.vn.train(documentation=f"To get the patient's first text name from {PATIENT_TABLE_FQ}, query the 'name' JSON field like this: (SELECT n.text FROM UNNEST(name) AS n LIMIT 1).")
-            self.vn.train(documentation=f"To get the patient's city from {PATIENT_TABLE_FQ}, query the 'address' JSON field like this: (SELECT a.city FROM UNNEST(address) AS a LIMIT 1).")
-            self.vn.train(documentation=f"The table {MED_REQ_TABLE_FQ} lists medication orders. Filter by patient using 'subject.patientId = :patient_id'.")
-            self.vn.train(documentation=f"To get the medication name from {MED_REQ_TABLE_FQ}, use 'medicationCodeableConcept.text'. Active medications have 'status = \"active\"'.")
-            self.vn.train(documentation=f"The table {CONDITION_TABLE_FQ} lists patient health conditions. Filter by patient using 'subject.patientId = :patient_id'. Get condition name from 'code.text'. Confirmed conditions often have verificationStatus.coding[OFFSET(0)].code = 'confirmed'.")
-            self.vn.train(documentation=f"The table {OBSERVATION_TABLE_FQ} contains patient observations like lab results and vitals. Filter by patient using 'subject.patientId = :patient_id'. Get observation name from 'code.text' or 'code.coding[OFFSET(0)].display'. Numeric values are in 'valueQuantity.value' with units in 'valueQuantity.unit'. String values are in 'valueString'. Coded values are in 'valueCodeableConcept.text'.")
-            self.vn.train(documentation=f"Patient allergies are in {ALLERGY_TABLE_FQ}. Filter by patient using 'patient.patientId = :patient_id'. Get allergy name from 'code.text'.")
+            self.vn.train(documentation=f"Table {PATIENT_TABLE_FQ}: Contains patient demographic information. Filter by patient ID using 'id = :patient_id'.")
+            self.vn.train(documentation=f"From {PATIENT_TABLE_FQ}: Get official name text using (SELECT n.text FROM UNNEST(name) AS n WHERE n.use = 'official' LIMIT 1). Get home city using (SELECT a.city FROM UNNEST(address) AS a WHERE a.use = 'home' LIMIT 1).")
+            self.vn.train(documentation=f"Table {MED_REQ_TABLE_FQ}: Lists medication orders. Filter by patient using 'subject.patientId = :patient_id'.")
+            self.vn.train(documentation=f"From {MED_REQ_TABLE_FQ}: Get medication name from 'medicationCodeableConcept.text'. Active medications have 'status = \"active\"'. 'authoredOn' is the prescription date.")
+            self.vn.train(documentation=f"Table {CONDITION_TABLE_FQ}: Lists patient health conditions. Filter by patient using 'subject.patientId = :patient_id'. Get condition name from 'code.text'.")
+            self.vn.train(documentation=f"From {CONDITION_TABLE_FQ}: Confirmed conditions often have 'EXISTS (SELECT 1 FROM UNNEST(verificationStatus.coding) AS vs WHERE vs.code = 'confirmed')'. 'onsetDateTime' is when the condition started. 'recordedDate' is when it was recorded.")
+            self.vn.train(documentation=f"Table {OBSERVATION_TABLE_FQ}: Contains patient observations (labs, vitals). Filter by patient using 'subject.patientId = :patient_id'. Get observation name from 'code.text' or 'code.coding[OFFSET(0)].display'.")
+            self.vn.train(documentation=f"From {OBSERVATION_TABLE_FQ}: Numeric values are in 'valueQuantity.value' with units in 'valueQuantity.unit'. String values are in 'valueString'. Coded values are in 'valueCodeableConcept.text'. 'effectiveDateTime' is when the observation was made. Common categories are 'vital-signs' and 'laboratory' (check category.coding[OFFSET(0)].code).")
+            self.vn.train(documentation=f"Table {ALLERGY_TABLE_FQ}: Lists patient allergies and intolerances. Filter by patient using 'patient.patientId = :patient_id'. Get allergy name from 'code.text'. 'type' can be 'allergy' or 'intolerance'.")
+            self.vn.train(documentation=f"Table {ENCOUNTER_TABLE_FQ}: Describes patient encounters (visits, admissions). Filter by patient using 'subject.patientId = :patient_id'. Encounter type is in 'type[OFFSET(0)].text'. Encounter duration is in 'period.start' and 'period.end'.")
+            self.vn.train(documentation=f"Table {PROCEDURE_TABLE_FQ}: Lists procedures performed on patients. Filter by patient using 'subject.patientId = :patient_id'. Procedure name is in 'code.text'. Procedure duration is in 'performedPeriod.start' and 'performedPeriod.end'.")
 
             # SQL Samples (using fully qualified names)
             self.vn.train(
@@ -159,9 +192,32 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
                 question="What was the last recorded systolic blood pressure for patient 'patient002'?",
                 sql=f"SELECT T1.valueQuantity.value FROM {OBSERVATION_TABLE_FQ} AS T1 WHERE T1.subject.patientId = 'patient002' AND T1.code.text = 'Systolic blood pressure' ORDER BY T1.effectiveDateTime DESC LIMIT 1"
             )
+            self.vn.train(
+                question="What allergies does patient 'patient123' have?",
+                sql=f"SELECT T1.code.text FROM {ALLERGY_TABLE_FQ} AS T1 WHERE T1.patient.patientId = 'patient123'"
+            )
+            self.vn.train(
+                question="List encounters for patient 'patient456' in the last year.",
+                sql=f"SELECT T1.type[OFFSET(0)].text AS encounter_type, T1.period.start AS encounter_start FROM {ENCOUNTER_TABLE_FQ} AS T1 WHERE T1.subject.patientId = 'patient456' AND T1.period.start >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 YEAR)"
+            )
+            self.vn.train(
+                question="What procedures has patient 'patient789' undergone?",
+                sql=f"SELECT T1.code.text AS procedure_name FROM {PROCEDURE_TABLE_FQ} AS T1 WHERE T1.subject.patientId = 'patient789'"
+            )
+            self.vn.train(
+                question="Find lab results for patient 'patient001'.",
+                sql=f"SELECT O.code.text AS lab_test, O.valueQuantity.value AS result_value, O.valueQuantity.unit AS result_unit, O.effectiveDateTime FROM {OBSERVATION_TABLE_FQ} AS O WHERE O.subject.patientId = 'patient001' AND EXISTS (SELECT 1 FROM UNNEST(O.category) AS cat JOIN UNNEST(cat.coding) AS cat_coding WHERE cat_coding.code = 'laboratory')"
+            )
+            # This is a duplicate of a previous sample, but it's good to have it explicitly.
+            # If Vanna allows, you can remove one if it's truly redundant.
+            # For now, keeping it to ensure the pattern is reinforced.
+            self.vn.train(
+                question="What was the last recorded systolic blood pressure for patient 'patient002'?",
+                sql=f"SELECT T1.valueQuantity.value FROM {OBSERVATION_TABLE_FQ} AS T1 WHERE T1.subject.patientId = 'patient002' AND T1.code.text = 'Systolic blood pressure' ORDER BY T1.effectiveDateTime DESC LIMIT 1"
+            )
             print("Vanna training submitted.")
 
-    async def get_response(self, natural_language_query: str, patient_id: str) -> tuple[str | None, str | None]:
+    async def get_response(self, natural_language_query: str, patient_id: str) -> str: # Return type changed to str
         # Use patient_id as a parameter that Vanna can potentially use in SQL
         # The vn.ask method attempts to generate SQL, run it, and generate a natural language response.
         # It can also return charts, but we're interested in the text response and SQL.
@@ -169,20 +225,44 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
             # Include patient_id in the question string for Vanna to use.
             # Vanna's training should be set up to recognize and use this patient_id.
             question_with_context = f"For patient ID '{patient_id}': {natural_language_query}"
-            raw_vanna_op = self.vn.ask(question=question_with_context, print_results=False)
-            final_nl_answer = "Could not retrieve an answer."
+            # The vn.ask method in recent Vanna versions (especially with GoogleGeminiChat)
+            # often returns the SQL query as the first element of a tuple if successful,
+            # and the natural language answer or DataFrame as other elements.
+            # We are primarily interested in the natural language answer generated by the LLM
+            # after it has potentially run the SQL query.
+            # If vn.ask directly returns a string, it's likely the NL answer.
+            # If it returns a tuple, the NL answer might be the first element, or
+            # we might need to inspect the tuple structure based on Vanna's current behavior.
 
-            if isinstance(raw_vanna_op, tuple) and len(raw_vanna_op) > 2:
-                df_results = raw_vanna_op[1]
-                if df_results is not None and not df_results.empty:                                                                                                              
-                    final_nl_answer = f"Here are the results I found:\n{df_results.to_string(index=False, max_rows=10)}"                                                           
-                    if len(df_results) > 10:                                                                                                                                       
-                        final_nl_answer += "\n(Showing top 10 results)"  
+            # Let's assume for now that vn.ask will return the final NL answer as a string,
+            # or as the first element of a tuple if it also returns SQL/DataFrame.
+            response_content = self.vn.ask(question=question_with_context, print_results=False)
+            
+            final_nl_answer = "Could not retrieve an answer from Vanna."
+
+            if isinstance(response_content, str):
+                final_nl_answer = response_content
+            elif isinstance(response_content, tuple) and len(response_content) > 0:
+                # Vanna often returns (natural_language_answer, sql_query, dataframe, chart_url)
+                # We are interested in the natural_language_answer.
+                # Sometimes the first element is the SQL, and the NL answer is derived later or part of a more complex object.
+                # For simplicity, let's check if the first element is a string and assume it's the NL answer.
+                # If Vanna's output structure is different, this logic needs adjustment.
+                if isinstance(response_content[0], str):
+                    final_nl_answer = response_content[0]
+                # If the second element is a DataFrame and we want to format it (as in the original code)
+                elif len(response_content) > 1 and response_content[1] is not None and not response_content[1].empty:
+                    df_results = response_content[1]
+                    final_nl_answer = f"Here are the results I found:\n{df_results.to_string(index=False, max_rows=10)}"
+                    if len(df_results) > 10:
+                        final_nl_answer += "\n(Showing top 10 results)"
+                # Add more sophisticated handling if needed based on Vanna's specific return type for GoogleGeminiChat
 
             return final_nl_answer
         except Exception as e:
             print(f"Error during Vanna interaction: {e}")
-            return f"An error occurred while processing your request with Vanna: {str(e)}", None
+            # Ensure the return type matches the function signature
+            return f"An error occurred while processing your request with Vanna: {str(e)}"
 
 def get_vanna_handler():
     # This could involve more complex setup or singleton pattern in a real app
