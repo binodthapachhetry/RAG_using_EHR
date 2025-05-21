@@ -31,8 +31,8 @@ TRAINING_DDLS = [
     f"""
     CREATE TABLE {MED_REQ_TABLE_FQ} (
         id STRING,
-        status STRING,
-        medication.codeableConcept JSON, -- To get medication name: medication.codeableConcept.text
+        status STRING, -- e.g., 'active', 'completed'
+        medicationCodeableConcept JSON, -- To get medication name: medicationCodeableConcept.text. This is a STRUCT.
         subject JSON, -- To get patientId: subject.patientId
         authoredOn TIMESTAMP
     );
@@ -41,8 +41,8 @@ TRAINING_DDLS = [
     CREATE TABLE {CONDITION_TABLE_FQ} (
         id STRING,
         clinicalStatus JSON, -- Example: clinicalStatus.coding[OFFSET(0)].code
-        verificationStatus JSON, -- Example: verificationStatus.coding[OFFSET(0)].code
-        code JSON, -- To get condition name: code.text
+        verificationStatus JSON, -- Example: verificationStatus.coding[OFFSET(0)].code. Common values: 'confirmed', 'unconfirmed'
+        code JSON, -- To get condition name: code.text. This is a STRUCT.
         subject JSON -- To get patientId: subject.patientId
     );
     """,
@@ -50,10 +50,10 @@ TRAINING_DDLS = [
     CREATE TABLE {OBSERVATION_TABLE_FQ} (
         id STRING,
         status STRING,
-        code JSON, -- To get observation name: code.text or code.coding[OFFSET(0)].display
+        code JSON, -- To get observation name: code.text or code.coding[OFFSET(0)].display. This is a STRUCT.
         subject JSON, -- To get patientId: subject.patientId
         effectiveDateTime TIMESTAMP,
-        valueQuantity JSON, -- For numeric values: valueQuantity.value, valueQuantity.unit
+        valueQuantity JSON, -- For numeric values: valueQuantity.value, valueQuantity.unit. This is a STRUCT.
         valueString STRING,
         valueCodeableConcept JSON -- For coded values: valueCodeableConcept.text
     );
@@ -63,7 +63,7 @@ TRAINING_DDLS = [
         id STRING,
         clinicalStatus JSON, -- Example: clinicalStatus.coding[OFFSET(0)].code
         verificationStatus JSON,
-        code JSON, -- To get allergy name: code.text
+        code JSON, -- To get allergy name: code.text. This is a STRUCT.
         patient JSON -- To get patientId: patient.patientId
     );
     """,
@@ -121,10 +121,13 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
             self.vn.train(documentation="When a question refers to 'the patient' or includes a 'patient_id', filter data for that specific patient. Use the patient_id in a WHERE clause.")
 
             # Table/Column Specific Documentation
-            self.vn.train(documentation=f"Patient data is in {PATIENT_TABLE_FQ}. Filter by patient ID using 'id = :patient_id'. Get name from 'name' JSON field, e.g., (SELECT n.text FROM UNNEST(name) AS n LIMIT 1).")
-            self.vn.train(documentation=f"Medication orders are in {MED_REQ_TABLE_FQ}. Filter by patient using 'subject.patientId = :patient_id'. Get medication name from 'medication.codeableConcept.text'. Active medications have 'status = \"active\"'.")
-            self.vn.train(documentation=f"Patient conditions are in {CONDITION_TABLE_FQ}. Filter by patient using 'subject.patientId = :patient_id'. Get condition name from 'code.text'.")
-            self.vn.train(documentation=f"Patient observations (labs, vitals) are in {OBSERVATION_TABLE_FQ}. Filter by patient using 'subject.patientId = :patient_id'. Get observation name from 'code.text'. Numeric values are in 'valueQuantity.value' with units in 'valueQuantity.unit'.")
+            self.vn.train(documentation=f"The table {PATIENT_TABLE_FQ} contains patient demographic information. Filter by patient ID using 'id = :patient_id'.")
+            self.vn.train(documentation=f"To get the patient's first text name from {PATIENT_TABLE_FQ}, query the 'name' JSON field like this: (SELECT n.text FROM UNNEST(name) AS n LIMIT 1).")
+            self.vn.train(documentation=f"To get the patient's city from {PATIENT_TABLE_FQ}, query the 'address' JSON field like this: (SELECT a.city FROM UNNEST(address) AS a LIMIT 1).")
+            self.vn.train(documentation=f"The table {MED_REQ_TABLE_FQ} lists medication orders. Filter by patient using 'subject.patientId = :patient_id'.")
+            self.vn.train(documentation=f"To get the medication name from {MED_REQ_TABLE_FQ}, use 'medicationCodeableConcept.text'. Active medications have 'status = \"active\"'.")
+            self.vn.train(documentation=f"The table {CONDITION_TABLE_FQ} lists patient health conditions. Filter by patient using 'subject.patientId = :patient_id'. Get condition name from 'code.text'. Confirmed conditions often have verificationStatus.coding[OFFSET(0)].code = 'confirmed'.")
+            self.vn.train(documentation=f"The table {OBSERVATION_TABLE_FQ} contains patient observations like lab results and vitals. Filter by patient using 'subject.patientId = :patient_id'. Get observation name from 'code.text' or 'code.coding[OFFSET(0)].display'. Numeric values are in 'valueQuantity.value' with units in 'valueQuantity.unit'. String values are in 'valueString'. Coded values are in 'valueCodeableConcept.text'.")
             self.vn.train(documentation=f"Patient allergies are in {ALLERGY_TABLE_FQ}. Filter by patient using 'patient.patientId = :patient_id'. Get allergy name from 'code.text'.")
 
             # SQL Samples (using fully qualified names)
@@ -143,6 +146,14 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
             self.vn.train(
                 question="Show me the name of patient 'patient001'.",
                 sql=f"SELECT (SELECT n.text FROM UNNEST(T1.name) AS n LIMIT 1) AS patient_name FROM {PATIENT_TABLE_FQ} AS T1 WHERE T1.id = 'patient001'"
+            )
+            self.vn.train(
+                question="What is the birth date of patient 'patient001'?",
+                sql=f"SELECT T1.birthDate FROM {PATIENT_TABLE_FQ} AS T1 WHERE T1.id = 'patient001'"
+            )
+            self.vn.train(
+                question="Find confirmed conditions for patient 'patient456'.",
+                sql=f"SELECT T1.code.text FROM {CONDITION_TABLE_FQ} AS T1 WHERE T1.subject.patientId = 'patient456' AND EXISTS (SELECT 1 FROM UNNEST(T1.verificationStatus.coding) AS vs WHERE vs.code = 'confirmed')"
             )
             self.vn.train(
                 question="What was the last recorded systolic blood pressure for patient 'patient002'?",
