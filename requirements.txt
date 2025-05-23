@@ -15,3 +15,4 @@ google-cloud-aiplatform
 vanna[gemini,bigquery] # For Vanna
 langchain-google-vertexai # For Langchain + Vertex AI Gemini
 sqlalchemy-bigquery # For Langchain + BigQuery via SQLAlchemy
+langchain-community
