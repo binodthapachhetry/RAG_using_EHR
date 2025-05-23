@@ -2,7 +2,8 @@ fastapi
 uvicorn                                                              
 pydantic    
 dotenv     
-db-dtypes                                                              
+db-dtypes    
+pyodbc                                                          
                                                                               
 # GCP Libraries                                                                
 google-cloud-bigquery                                                          
