@@ -235,7 +235,7 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
             # Removed the duplicate SQL sample for systolic blood pressure that was here.
             print("Vanna training submitted.")
 
-    async def get_response(self, natural_language_query: str, patient_id: str) -> str: # Return type changed to str
+    async def get_response(self, natural_language_query: str, patient_id: str) -> tuple[str, str | None]: # Return type changed to tuple[str, str | None]
         # Use patient_id as a parameter that Vanna can potentially use in SQL
         # The vn.ask method attempts to generate SQL, run it, and generate a natural language response.
         # It can also return charts, but we're interested in the text response and SQL.
@@ -257,6 +257,7 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
             response_content = self.vn.ask(question=question_with_context, print_results=False)
             
             final_nl_answer = "Could not retrieve an answer from Vanna."
+            sql_query = None
 
             if isinstance(response_content, str):
                 final_nl_answer = response_content
@@ -268,6 +269,9 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
                 # If Vanna's output structure is different, this logic needs adjustment.
                 if isinstance(response_content[0], str):
                     final_nl_answer = response_content[0]
+                    # If there's a second element and it's a string, it might be the SQL query
+                    if len(response_content) > 1 and isinstance(response_content[1], str):
+                        sql_query = response_content[1]
                 # If the second element is a DataFrame and we want to format it (as in the original code)
                 elif len(response_content) > 1 and response_content[1] is not None and not response_content[1].empty:
                     df_results = response_content[1]
@@ -276,11 +280,18 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
                         final_nl_answer += "\n(Showing top 10 results)"
                 # Add more sophisticated handling if needed based on Vanna's specific return type for GoogleGeminiChat
 
-            return final_nl_answer
+            # Try to extract SQL query from Vanna's response if not already found
+            if sql_query is None and hasattr(self.vn, 'get_last_sql'):
+                try:
+                    sql_query = self.vn.get_last_sql()
+                except:
+                    pass
+
+            return final_nl_answer, sql_query
         except Exception as e:
             print(f"Error during Vanna interaction: {e}")
             # Ensure the return type matches the function signature
-            return f"An error occurred while processing your request with Vanna: {str(e)}"
+            return f"An error occurred while processing your request with Vanna: {str(e)}", None
 
 def get_vanna_handler():
     # This could involve more complex setup or singleton pattern in a real app

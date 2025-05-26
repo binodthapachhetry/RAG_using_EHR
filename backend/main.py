@@ -37,22 +37,11 @@ async def handle_chat_request(
     elif settings.QUERY_HANDLER_TYPE == "vanna":
         print("Using Vanna Handler")
         vanna_handler: VannaHandler = get_vanna_handler() # Get Vanna handler instance
-        # Assuming vanna_handler.get_response now returns (nl_answer, sql_query)
-        # This change in VannaHandler's signature is implied by the user's plan for main.py
-        response_tuple = await vanna_handler.get_response(
+        # VannaHandler.get_response now returns (nl_answer, sql_query)
+        nl_answer_str, sql_query_str = await vanna_handler.get_response(
             natural_language_query=request.query,
             patient_id=request.patient_id
         )
-        # Check if response_tuple is indeed a tuple (nl_answer, sql_query)
-        # or just nl_answer string as per original vanna_handler.py
-        if isinstance(response_tuple, tuple) and len(response_tuple) == 2:
-            nl_answer_str, sql_query_str = response_tuple
-        elif isinstance(response_tuple, str): # Fallback if VannaHandler still returns only string
-            nl_answer_str = response_tuple
-            sql_query_str = None # Vanna might not always return SQL explicitly this way
-            print("Warning: VannaHandler returned a single string. SQL query might not be available.")
-        else: # Unexpected return type
-            raise HTTPException(status_code=500, detail="Unexpected response type from VannaHandler.")
 
     else:
         raise HTTPException(status_code=500, detail=f"Invalid QUERY_HANDLER_TYPE: {settings.QUERY_HANDLER_TYPE}")
