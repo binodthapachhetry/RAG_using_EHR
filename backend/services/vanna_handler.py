@@ -282,8 +282,12 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
                     print(f"Error extracting SQL from Vanna: {sql_extract_error}")
             
             # Validate that the SQL query contains the patient ID filter
-            if sql_query and patient_id not in sql_query:
-                print(f"WARNING: Generated SQL does not contain patient ID filter: {sql_query}")
+            if sql_query:
+                if patient_id not in sql_query and "patientId" not in sql_query:
+                    print(f"WARNING: Generated SQL does not contain patient ID filter: {sql_query}")
+                    # Reject the query as it doesn't contain proper patient filtering
+                    raise PermissionError(f"Query security violation: Missing patient filter for {patient_id}")
+                
                 # Add safety message to the answer
                 final_nl_answer = f"I found information for patient {patient_id}: {final_nl_answer}"
             
