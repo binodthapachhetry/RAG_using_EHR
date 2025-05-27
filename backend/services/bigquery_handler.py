@@ -32,21 +32,71 @@ class BigQueryHandler:
         if "medication" in query_text.lower():                                 
             # IMPORTANT: Always use parameterized queries to prevent SQL injection                                                                       
             sql_query = f"""                                                   
-                SELECT M.medicationCodeableConcept.text                        
+                SELECT M.medicationCodeableConcept.text as medication_name,
+                       M.status as status,
+                       M.authoredOn as prescribed_date                      
                 FROM `{self.fhir_base_tables['medicationrequest']}` AS M       
-                WHERE M.subject.patientId = @patient_id                        
+                WHERE M.subject.patientId = @patient_id
+                ORDER BY M.authoredOn DESC                      
             """                                                                
             query_params = [bigquery.ScalarQueryParameter("patient_id","STRING", patient_id)]   
             print("SQL_query:", sql_query)   
             print("Query_params:", query_params) 
 
-        elif "allergies" in query_text.lower():                                
+        elif "allergies" in query_text.lower() or "allergy" in query_text.lower():                                
             sql_query = f"""                                                  
-                SELECT A.code.text                                             
+                SELECT A.code.text as allergy_name,
+                       A.criticality as severity,
+                       A.recordedDate as recorded_date                                          
                 FROM `{self.fhir_base_tables['allergyintolerance']}` AS A      
-                WHERE A.patient.patientId = @patient_id                        
+                WHERE A.patient.patientId = @patient_id
+                ORDER BY A.recordedDate DESC                        
             """                                                                
-            query_params = [bigquery.ScalarQueryParameter("patient_id","STRING", patient_id)]                                                          
+            query_params = [bigquery.ScalarQueryParameter("patient_id","STRING", patient_id)]
+        
+        elif "condition" in query_text.lower() or "diagnosis" in query_text.lower():
+            sql_query = f"""
+                SELECT C.code.text as condition_name,
+                       (SELECT cs.code FROM UNNEST(C.clinicalStatus.coding) AS cs LIMIT 1) as status,
+                       C.recordedDate as recorded_date
+                FROM `{self.fhir_base_tables['condition']}` AS C
+                WHERE C.subject.patientId = @patient_id
+                ORDER BY C.recordedDate DESC
+            """
+            query_params = [bigquery.ScalarQueryParameter("patient_id","STRING", patient_id)]
+        
+        elif "lab" in query_text.lower() or "test" in query_text.lower() or "result" in query_text.lower():
+            sql_query = f"""
+                SELECT O.code.text as test_name,
+                       O.valueQuantity.value as value,
+                       O.valueQuantity.unit as unit,
+                       O.effectiveDateTime as test_date
+                FROM `{self.fhir_base_tables['observation']}` AS O
+                WHERE O.subject.patientId = @patient_id
+                AND EXISTS (SELECT 1 FROM UNNEST(O.category) AS cat 
+                           JOIN UNNEST(cat.coding) AS cat_coding 
+                           WHERE cat_coding.code = 'laboratory')
+                ORDER BY O.effectiveDateTime DESC
+                LIMIT 10
+            """
+            query_params = [bigquery.ScalarQueryParameter("patient_id","STRING", patient_id)]
+        
+        elif "vital" in query_text.lower() or "bp" in query_text.lower() or "blood pressure" in query_text.lower():
+            sql_query = f"""
+                SELECT O.code.text as vital_sign,
+                       O.valueQuantity.value as value,
+                       O.valueQuantity.unit as unit,
+                       O.effectiveDateTime as recorded_date
+                FROM `{self.fhir_base_tables['observation']}` AS O
+                WHERE O.subject.patientId = @patient_id
+                AND EXISTS (SELECT 1 FROM UNNEST(O.category) AS cat 
+                           JOIN UNNEST(cat.coding) AS cat_coding 
+                           WHERE cat_coding.code = 'vital-signs')
+                ORDER BY O.effectiveDateTime DESC
+                LIMIT 10
+            """
+            query_params = [bigquery.ScalarQueryParameter("patient_id","STRING", patient_id)]
+                                                                
         else:                                                                  
             return [{"error": "Unsupported simple query type."}]               
                                                                                

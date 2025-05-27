@@ -166,10 +166,28 @@ class LangchainSqlHandler:
             f"patient.id = '{patient_id}'",
             f"patient.patientid = '{patient_id}'", 
             f"subject.patientid = '{patient_id}'",
-            f"p.id = '{patient_id}'"
+            f"p.id = '{patient_id}'",
+            f"t1.id = '{patient_id}'",
+            f"t1.subject.patientid = '{patient_id}'",
+            f"t1.patient.patientid = '{patient_id}'"
         ]
         
-        return any(filter_text.lower() in sql_lower for filter_text in patient_filters)
+        # Also check for parameterized queries
+        param_filters = [
+            "patient.id = @patient_id",
+            "patient.patientid = @patient_id",
+            "subject.patientid = @patient_id",
+            "p.id = @patient_id",
+            "t1.id = @patient_id",
+            "t1.subject.patientid = @patient_id",
+            "t1.patient.patientid = @patient_id"
+        ]
+        
+        # Check for any of the filter patterns
+        has_direct_filter = any(filter_text.lower() in sql_lower for filter_text in patient_filters)
+        has_param_filter = any(filter_text.lower() in sql_lower for filter_text in param_filters)
+        
+        return has_direct_filter or has_param_filter
 
 def get_langchain_sql_handler():
     return LangchainSqlHandler()
