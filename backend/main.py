@@ -68,18 +68,36 @@ async def handle_chat_request(
         if settings.QUERY_HANDLER_TYPE == "langchain":
             print("Using Langchain SQL Handler")
             langchain_handler: LangchainSqlHandler = get_langchain_sql_handler()
-            nl_answer_str, sql_query_str = await langchain_handler.get_response(
-                natural_language_query=request.query,
-                patient_id=request.patient_id
-            )
+            try:
+                nl_answer_str, sql_query_str = await langchain_handler.get_response(
+                    natural_language_query=request.query,
+                    patient_id=request.patient_id
+                )
+            except PermissionError as e:
+                # Handle security violations by returning a safe error message
+                return ChatResponse(
+                    answer="I'm sorry, but I cannot process this request due to security constraints. All queries must be limited to the specified patient's data.",
+                    patient_id=request.patient_id,
+                    query_type=QueryType.UNDETERMINED,
+                    sources=None
+                )
         elif settings.QUERY_HANDLER_TYPE == "vanna":
             print("Using Vanna Handler")
             vanna_handler: VannaHandler = get_vanna_handler() # Get Vanna handler instance
-            # VannaHandler.get_response now returns (nl_answer, sql_query)
-            nl_answer_str, sql_query_str = await vanna_handler.get_response(
-                natural_language_query=request.query,
-                patient_id=request.patient_id
-            )
+            try:
+                # VannaHandler.get_response now returns (nl_answer, sql_query)
+                nl_answer_str, sql_query_str = await vanna_handler.get_response(
+                    natural_language_query=request.query,
+                    patient_id=request.patient_id
+                )
+            except PermissionError as e:
+                # Handle security violations by returning a safe error message
+                return ChatResponse(
+                    answer="I'm sorry, but I cannot process this request due to security constraints. All queries must be limited to the specified patient's data.",
+                    patient_id=request.patient_id,
+                    query_type=QueryType.UNDETERMINED,
+                    sources=None
+                )
         else:
             raise HTTPException(status_code=500, detail=f"Invalid QUERY_HANDLER_TYPE: {settings.QUERY_HANDLER_TYPE}")
 

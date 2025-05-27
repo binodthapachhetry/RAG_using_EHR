@@ -187,6 +187,10 @@ class LangchainSqlHandler:
         has_direct_filter = any(filter_text.lower() in sql_lower for filter_text in patient_filters)
         has_param_filter = any(filter_text.lower() in sql_lower for filter_text in param_filters)
         
+        # Log validation results for security auditing
+        if not (has_direct_filter or has_param_filter):
+            print(f"SQL SECURITY VIOLATION: Query does not contain proper patient filtering: {sql_query}")
+        
         return has_direct_filter or has_param_filter
 
 def get_langchain_sql_handler():

@@ -113,6 +113,12 @@ class BigQueryHandler:
         # This helps ensure the job runs in the same general location as the data.
         job_config.location = "US"
         
+        # Verify that patient_id is included in the query if query_params contains patient_id
+        if query_params and any(param.name == "patient_id" for param in query_params):
+            patient_id = next(param.value for param in query_params if param.name == "patient_id")
+            if "patientId" not in sql_query and "patient.id" not in sql_query.lower():
+                raise PermissionError(f"Query security violation: Missing patient filter for {patient_id}")
+        
         # This is the synchronous part that will be run in a separate thread
         def sync_bq_call():
             query_job = self.client.query(sql_query, job_config=job_config)
