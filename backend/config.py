@@ -18,5 +18,10 @@ class Settings:
     VANNA_STORAGE_DATASET: str = os.getenv("VANNA_STORAGE_DATASET", "vanna_fhir") # Corrected default
 
     QUERY_HANDLER_TYPE: str = os.getenv("QUERY_HANDLER_TYPE", "vanna") # "vanna" or "langchain"
+
+    # W&B experiment tracking
+    WANDB_PROJECT: str = os.getenv("WANDB_PROJECT", "physician-chat")
+    WANDB_ENTITY: str | None = os.getenv("WANDB_ENTITY")  # Optional team/org
+    WANDB_DISABLED: str | None = os.getenv("WANDB_DISABLED")  # "true" to mute
                                                                                
 settings = Settings()

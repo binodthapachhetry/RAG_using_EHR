@@ -3,6 +3,7 @@ import vanna
 from vanna.google import GoogleGeminiChat # Changed from vanna.vertex
 from vanna.google import BigQuery_VectorStore
 from ..utils.schema_loader import get_fhir_synthea_schema
+from ..utils.wandb_monitor import log_event
 
 from ..config import settings
 from google.oauth2 import service_account
@@ -69,14 +70,18 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
         )
         if existing_training_data.empty or len(existing_training_data) < len(dynamic_ddls):
             print("Training Vanna with full dynamically extracted DDLs...")
+            log_event("vanna/training_start", {"ddl_count": len(dynamic_ddls)})
             for ddl in dynamic_ddls:
                 self.vn.train(ddl=ddl)
+            log_event("vanna/training_end", {})
 
     async def get_response(self, natural_language_query: str, patient_id: str) -> tuple[str, str | None]: # Return type changed to tuple[str, str | None]
         # Use patient_id as a parameter that Vanna can potentially use in SQL
         # The vn.ask method attempts to generate SQL, run it, and generate a natural language response.
         # It can also return charts, but we're interested in the text response and SQL.
         try:
+            # Log the incoming request for traceability
+            log_event("request/vanna", {"question": natural_language_query, "patient_id": patient_id})
             # Include patient_id in the question string for Vanna to use.
             # Vanna's training should be set up to recognize and use this patient_id.
             question_with_context = f"For patient ID '{patient_id}': {natural_language_query}"
@@ -128,9 +133,13 @@ class VannaHandler: # VannaHandler does not need to inherit from Vanna classes
                 # Add safety message to the answer
                 final_nl_answer = f"I found information for patient {patient_id}: {final_nl_answer}"
             
+            # Log the response and SQL
+            log_event("response/vanna", {"answer": final_nl_answer, "sql": sql_query})
+
             return final_nl_answer, sql_query
         except Exception as e:
             print(f"Error during Vanna interaction: {e}")
+            log_event("error/vanna", {"error": str(e)})
             # Ensure the return type matches the function signature
             return f"I'm sorry, I couldn't process your request at this time. Please try again or rephrase your question.", None
 

@@ -5,6 +5,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from ..utils.schema_loader import get_fhir_synthea_schema
+from ..utils.wandb_monitor import log_event
 
 from ..config import settings
 
@@ -65,6 +66,8 @@ class LangchainSqlHandler:
         )
 
     async def get_response(self, natural_language_query: str, patient_id: str) -> tuple[str | None, str | None]:
+        # Log the incoming request for traceability
+        log_event("request/langchain_sql", {"question": natural_language_query, "patient_id": patient_id})
         system_message = f"""You MUST include 'WHERE subject.patientId = '{patient_id}' 
         in all queries. Never query other patients."""
         question_with_context = f"For patient ID '{patient_id}': {natural_language_query}. Ensure all SQL queries explicitly filter for this patient ID using the correct patient identifier column for each table (e.g., Patient.id='{patient_id}', MedicationRequest.subject.patientId='{patient_id}', Condition.subject.patientId='{patient_id}', Observation.subject.patientId='{patient_id}', AllergyIntolerance.patient.patientId='{patient_id}', Encounter.subject.patientId='{patient_id}', Procedure.subject.patientId='{patient_id}'). Only query tables relevant to the question."
@@ -75,13 +78,6 @@ class LangchainSqlHandler:
             sql_query = self.generate_query_chain.invoke({"question": question_with_context})
             print(f"Langchain Generated SQL: {sql_query}")
             
-            # Execute the full chain to get the NL answer
-            # The full_chain internally regenerates the query and executes it.
-            # To avoid re-generating query, we can invoke parts of the chain:
-            # sql_result = self.db.run(sql_query)
-            # print(f"Langchain SQL Result: {sql_result}")
-            # nl_answer = self.answer_chain.invoke({"question": question_with_context, "query": sql_query, "result": sql_result})
-
             # Using the pre-defined full_chain for simplicity, though it might re-run query generation.
             # For more control and to ensure the logged SQL is the one used for the result:
             chain_input = {"question": question_with_context}
@@ -95,6 +91,8 @@ class LangchainSqlHandler:
             # Then, execute the query
             sql_result = self.db.run(generated_sql_query)
             print(f"Langchain SQL Result: {sql_result}")
+            # Log the SQL execution and result count
+            log_event("sql/langchain", {"sql": generated_sql_query, "patient_id": patient_id, "rows": len(sql_result)})
             
             # Finally, generate the natural language answer
             nl_answer = self.answer_chain.invoke({
@@ -103,9 +101,13 @@ class LangchainSqlHandler:
                 "result": sql_result
             })
 
+            # Log the final answer
+            log_event("response/langchain_sql", {"answer": nl_answer})
+
             return nl_answer, generated_sql_query
         except Exception as e:
             print(f"Error during Langchain SQL interaction: {e}")
+            log_event("error/langchain_sql", {"error": str(e)})
             if 'generated_sql_query' in locals() and "patientId" not in str(generated_sql_query):
                 raise PermissionError("Query security violation")
             error_message = f"An error occurred while processing your request with Langchain SQL: {str(e)}"

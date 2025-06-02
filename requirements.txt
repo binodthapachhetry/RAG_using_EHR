@@ -19,3 +19,4 @@ sqlalchemy-bigquery # For Langchain + BigQuery via SQLAlchemy
 langchain-community
 google-auth # Often a core dependency for GCP libraries
 google-auth-oauthlib # For user authentication flows, sometimes needed by ADC helpers
+wandb==0.16.4  # experiment tracking
